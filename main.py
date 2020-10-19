@@ -133,6 +133,13 @@ intervals = [
 		"name": "septième majeure",
 		"nb_tones": 5.5,
 		"opposite": "seconde mineure"
+	# },
+	# {
+	# 	"nb_notes": 8,
+	# 	"kind": "octave",
+	# 	"name": "octave",
+	# 	"nb_tones": 6,
+	# 	"opposite": "octave"
 	}
 ]
 
@@ -161,9 +168,33 @@ def find_correct_index(dest):
 		return dest
 
 def find_nb_tones(origin, dest, up):
+	if origin == dest:
+		return 6
+	i_origin = find_note_index(origin)
+	i_dest = find_note_index(dest)
+	origin = gamme[i_origin]
+	dest = gamme[i_dest]
 	nb_tones = 0
-	if up == true:
-		pass
+	i = i_origin
+	count = 0
+
+	if up == True:
+		while gamme[i]["note"] != dest["note"]:
+			nb_tones += gamme[i]["tone_up"]
+			i += 1
+			count += 1
+			if i == len(gamme):
+				i = 0
+		diff = {"nb_tones": nb_tones, "nb_notes": count + 1}
+	else:
+		while gamme[i]["note"] != dest["note"]:
+			nb_tones += gamme[i]["tone_down"]
+			i -= 1
+			count += 1
+			if i == -1:
+				i = len(gamme) - 1
+		diff = {"nb_tones": nb_tones, "nb_notes": count + 1}
+	return diff
 
 def find_up_note(origin, interval_kind):
 	looked_intervals = list(filter(lambda interval: interval["kind"] == interval_kind, intervals))
@@ -172,13 +203,11 @@ def find_up_note(origin, interval_kind):
 	i_origin = (find_note_index(origin))
 	i = i_origin
 	while looked_nb_notes < looked_intervals[0]["nb_notes"]:
-		looked_nb_notes = looked_nb_notes + 1
-		nb_tones = nb_tones + gamme[i]["tone_up"]
-		i = i + 1
+		looked_nb_notes += 1
+		nb_tones += gamme[i]["tone_up"]
+		i += 1
 		if i == nb_notes:
 			i = 0
-	# i_dest = i_origin + looked_intervals[0]["nb_notes"] - 1
-	# i_dest = find_correct_index(i_dest)
 	interval = list(filter(lambda interval: interval["nb_tones"] == nb_tones, looked_intervals))[0]
 	answer = " >> %-3s <<  %3s.•°%-3s est une %s montante (%1.1f tons)"% (gamme[i]["note"], origin, gamme[i]["note"], interval["name"], interval["nb_tones"])
 	return {"origin": origin, "dest": gamme[i]["note"], "interval": interval, "answer": answer}
@@ -190,13 +219,11 @@ def find_down_note(origin, interval_kind):
 	i_origin = (find_note_index(origin))
 	i = i_origin
 	while looked_nb_notes < looked_intervals[0]["nb_notes"]:
-		looked_nb_notes = looked_nb_notes + 1
-		nb_tones = nb_tones + gamme[i]["tone_down"]
-		i = i - 1
+		looked_nb_notes += 1
+		nb_tones += gamme[i]["tone_down"]
+		i -= 1
 		if i == -1:
 			i = 6
-	# i_dest = i_origin - looked_intervals[0]["nb_notes"] + 1
-	# i_dest = find_correct_index(i_dest)
 	interval = list(filter(lambda interval: interval["nb_tones"] == nb_tones, looked_intervals))[0]
 	answer = " >> %-3s <<  %3s°•.%-3s est une %s descendante (%1.1f tons)" % (gamme[i]["note"], origin, gamme[i]["note"], interval["name"], interval["nb_tones"])
 	return {"origin": origin, "dest": gamme[i]["note"], "interval": interval, "answer": answer}
@@ -221,8 +248,26 @@ def go_round_down(origin, interval_kind):
 	answer = "\n".join(map(lambda item: item["answer"], r))
 	return {"answer": answer}
 
-def find_interval(note1, note2):
-	pass
+def find_intervals(note1, note2):
+	if note1 == note2:
+		return {"answer": "%s <> %s est un octave"% (note1, note2)}
+	r = []
+	diff = find_nb_tones(note1, note2, True)
+	interval1 = list(filter(lambda interval: interval["nb_notes"] == diff["nb_notes"] and interval["nb_tones"] == diff["nb_tones"], intervals))[0]
+
+	diff = find_nb_tones(note1, note2, False)
+	interval2 = list(filter(lambda interval: interval["nb_notes"] == diff["nb_notes"] and interval["nb_tones"] == diff["nb_tones"], intervals))[0]
+
+	r.append("%3s.•°%-3s est une %s montante (%1.1f tons)"% (note1, note2, interval1["name"], interval1["nb_tones"]))
+	r.append("%3s.•°%-3s est une %s montante (%1.1f tons)"% (note2, note1, interval2["name"], interval2["nb_tones"]))
+
+	r.append("%3s°•.%-3s est une %s descendante (%1.1f tons)"% (note1, note2, interval2["name"], interval2["nb_tones"]))
+	r.append("%3s°•.%-3s est une %s descendante (%1.1f tons)"% (note2, note1, interval1["name"], interval1["nb_tones"]))
+
+	answer = "\n".join(map(lambda item: item, r))
+	return {"answer": answer}
+
+
 
 def main():
 	note_list = list(map(lambda note: note["note"], gamme))
@@ -247,6 +292,11 @@ def main():
 			"type": "round",
 			"question": "Passez de %s en %s descendante à partir de %s :",
 			"function": go_round_down
+		},
+		{
+			"type": "find_interval",
+			"question": "Quels sont les intervalles possibles entre %s et %s ?",
+			"function": find_intervals
 		}
 	]
 	n_max = len(note_list) - 1
@@ -257,8 +307,20 @@ def main():
 		note = note_list[random.randint(0, n_max)]
 		interval = interval_list[random.randint(0, i_max)]
 		quest = quests[random.randint(0, p_max)]
-		input(quest["question"]% (interval, note) if quest["type"] != "round" else quest["question"]% (interval, interval, note))
-		rep = quest["function"](note, interval)
+		if quest["type"] == "find_note":
+			question = quest["question"]% (interval, note)
+			rep = quest["function"](note, interval)
+		elif quest["type"] == "round":
+			question = quest["question"]% (interval, interval, note)
+			rep = quest["function"](note, interval)
+		elif quest["type"] == "find_interval":
+			note2 = note_list[random.randint(0, n_max)]
+			question = quest["question"]% (note, note2)
+			rep = quest["function"](note, note2)
+		else:
+			question = "?"
+			rep = {"answer": "."}
+		input(question)
 		print(rep["answer"])
 		input("=================================")
 
