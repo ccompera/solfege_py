@@ -3,13 +3,10 @@ import random
 import signal
 
 def signal_handler(signal, frame):
-    global interrupted
-    interrupted = True
     print("\nÀ bientôt !")
     exit()
 
 signal.signal(signal.SIGINT, signal_handler)
-interrupted = False
 
 gamme = [
 	{
